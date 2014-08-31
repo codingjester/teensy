@@ -7,19 +7,19 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 )
 
 // TODO Make the url a bit more resilient
-// TODO Make the TinyURL Struct a bit cleaner
-// TODO Add stats tracking
 // TODO Maybe add a caching strategy?
 var db *sql.DB
+var hostname = "teensy.co" // Move to a configuration or environment file
 
 type TinyURL struct {
-	Hash string `json:"hash"`
+	Url string `json:"url"`
 }
 
 // Handles the Tiny
@@ -29,19 +29,26 @@ func TinyUrlRedirectHandler(w http.ResponseWriter, r *http.Request) {
 
 	var url string
 	var err error
-	err = db.QueryRow("SELECT url FROM urls WHERE id = ?", hash).Scan(&url)
+	id, err := strconv.ParseInt(hash, 36, 64)
 	if err != nil {
-		log.Fatal(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	err = db.QueryRow("SELECT url FROM urls WHERE id = ?", id).Scan(&url)
+	if err != nil {
+		http.NotFound(w, r)
+		return
 	}
 	http.Redirect(w, r, url, http.StatusMovedPermanently)
 }
 
 func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO Authentication?
 	err := r.ParseForm()
 	if err != nil {
 		fmt.Println(err)
 	}
-	// Make this a bit more robust bc this is sad
+
 	requrl, err := url.Parse(r.PostForm["url"][0])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -54,17 +61,19 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 
-	_, err = stmt.Exec(requrl.String())
+	res, err := stmt.Exec(requrl.String())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	/*lastId, err := res.LastInsertId()
+	lastId, err := res.LastInsertId()
 	if err != nil {
 		log.Fatal(err)
-	}*/
+	}
 
-	hash := TinyURL{"testing"}
+	tinyhash := strconv.FormatInt(lastId, 36)
+	tinyurl := fmt.Sprintf("http://%s/%s", hostname, tinyhash)
+	hash := TinyURL{tinyurl}
 	js, err := json.Marshal(hash)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -75,8 +84,20 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetTinyUrlsHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO Allow for pagination?
-	rows, err := db.Query("SELECT url FROM urls LIMIT 10")
+	// TODO Authentication?
+	offset := "0"
+	params := r.URL.Query()
+
+	_, ok := params["offset"]
+	if ok {
+		offset = params["offset"][0]
+	}
+
+	if _, err := strconv.Atoi(offset); err != nil {
+		offset = "0"
+	}
+
+	rows, err := db.Query("SELECT url FROM urls LIMIT 10 OFFSET ?", offset)
 	defer rows.Close()
 	for rows.Next() {
 		var url string
@@ -91,13 +112,13 @@ func GetTinyUrlsHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	var err error
-	db, err = sql.Open("mysql", "root@unix(/tmp/mysql.sock)/teensy")
+	db, err = sql.Open("mysql", "root@unix(/tmp/mysql.sock)/teensy") // Should be extracted to a setting
 	if err != nil {
 		log.Fatalf("Error on opening database connection: %s", err.Error())
 	}
 
 	db.SetMaxIdleConns(10)
-	err = db.Ping() // This DOES open a connection if necessary. This makes sure the database is accessible
+	err = db.Ping() // Check for DB access
 	if err != nil {
 		log.Fatalf("Error on opening database connection: %s", err.Error())
 	}

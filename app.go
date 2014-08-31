@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -13,13 +14,71 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// TODO Make the url a bit more resilient
+// TODO Make the url validation a bit more resilient
 // TODO Maybe add a caching strategy?
 var db *sql.DB
-var hostname = "teensy.co" // Move to a configuration or environment file
+var config *Configuration
 
 type TinyURL struct {
 	Url string `json:"url"`
+}
+
+type Configuration struct {
+	Hostname    string
+	Port        int
+	Db_Type     string
+	Db_Username string
+	Db_Password string
+	Db_Host     string
+	DB          string
+}
+
+func main() {
+
+	// Load configurations on startup
+	loadConfig()
+
+	// Setup all of our database connections
+	setupDB()
+
+	r := mux.NewRouter()
+	r.HandleFunc("/urls", AddTinyUrlHandler).Methods("POST")
+	r.HandleFunc("/urls", GetTinyUrlsHandler).Methods("GET")
+	r.HandleFunc("/{hash:[a-z0-9]+}", TinyUrlRedirectHandler).Methods("GET")
+	http.Handle("/", r)
+	http.ListenAndServe(":8080", nil)
+}
+
+func loadConfig() {
+	file, err := ioutil.ReadFile("config/config.json")
+	if err != nil {
+		log.Fatal("unable to open config: ", err)
+	}
+
+	temp := new(Configuration)
+	if err = json.Unmarshal(file, temp); err != nil {
+		log.Println("parse config", err)
+	}
+	config = temp
+}
+
+// Sets up the datbase using the loaded config
+// Possible improvements would be adding in other database support
+func setupDB() {
+
+	var err error
+	database_url := fmt.Sprintf("%s@%s/%s", config.Db_Username, config.Db_Host, config.DB)
+	db, err = sql.Open(config.Db_Type, database_url)
+	if err != nil {
+		log.Fatalf("Error on opening database connection: %s", err.Error())
+	}
+
+	db.SetMaxIdleConns(10)
+	err = db.Ping() // Check for DB access
+	if err != nil {
+		log.Fatalf("Error on opening database connection: %s", err.Error())
+	}
+
 }
 
 // Handles the Tiny
@@ -58,21 +117,24 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 	// Lets insert our url into our database
 	stmt, err := db.Prepare("INSERT INTO urls (url) VALUES(?)")
 	if err != nil {
-		log.Fatal(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	res, err := stmt.Exec(requrl.String())
 	if err != nil {
-		log.Fatal(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	lastId, err := res.LastInsertId()
 	if err != nil {
-		log.Fatal(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	tinyhash := strconv.FormatInt(lastId, 36)
-	tinyurl := fmt.Sprintf("http://%s/%s", hostname, tinyhash)
+	tinyurl := fmt.Sprintf("http://%s/%s", config.Hostname, tinyhash)
 	hash := TinyURL{tinyurl}
 	js, err := json.Marshal(hash)
 	if err != nil {
@@ -88,17 +150,21 @@ func GetTinyUrlsHandler(w http.ResponseWriter, r *http.Request) {
 	offset := "0"
 	params := r.URL.Query()
 
+	// Validates if offset exists and sets the value
 	_, ok := params["offset"]
 	if ok {
 		offset = params["offset"][0]
 	}
 
+	// Validates if offset is capable of being an int, default
+	// to zero if it can't
 	if _, err := strconv.Atoi(offset); err != nil {
 		offset = "0"
 	}
 
 	rows, err := db.Query("SELECT url FROM urls LIMIT 10 OFFSET ?", offset)
 	defer rows.Close()
+	// TODO We should be returning JSON and not plaintext
 	for rows.Next() {
 		var url string
 		err = rows.Scan(&url)
@@ -106,27 +172,7 @@ func GetTinyUrlsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err = rows.Err()
 	if err != nil {
-		log.Fatal("Error querying tiny urls")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-}
-
-func main() {
-	var err error
-	db, err = sql.Open("mysql", "root@unix(/tmp/mysql.sock)/teensy") // Should be extracted to a setting
-	if err != nil {
-		log.Fatalf("Error on opening database connection: %s", err.Error())
-	}
-
-	db.SetMaxIdleConns(10)
-	err = db.Ping() // Check for DB access
-	if err != nil {
-		log.Fatalf("Error on opening database connection: %s", err.Error())
-	}
-
-	r := mux.NewRouter()
-	r.HandleFunc("/urls", AddTinyUrlHandler).Methods("POST")
-	r.HandleFunc("/urls", GetTinyUrlsHandler).Methods("GET")
-	r.HandleFunc("/{hash:[a-z0-9]+}", TinyUrlRedirectHandler).Methods("GET")
-	http.Handle("/", r)
-	http.ListenAndServe(":8080", nil)
 }

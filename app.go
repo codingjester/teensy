@@ -15,7 +15,6 @@ import (
 )
 
 // TODO Make the url validation a bit more resilient
-// TODO Maybe add a caching strategy?
 var db *sql.DB
 var config *Configuration
 
@@ -25,6 +24,7 @@ type TinyURL struct {
 
 type Configuration struct {
 	Hostname    string
+	Proto       string
 	Port        int
 	Db_Type     string
 	Db_Username string
@@ -55,7 +55,8 @@ func loadConfig() {
 		log.Fatal("unable to open config: ", err)
 	}
 
-	temp := new(Configuration)
+	temp := new(Configuration) // Get a pointer to an instance with new keyword
+	// Unmarshal is going to decode and store into temp
 	if err = json.Unmarshal(file, temp); err != nil {
 		log.Println("parse config", err)
 	}
@@ -88,6 +89,7 @@ func TinyUrlRedirectHandler(w http.ResponseWriter, r *http.Request) {
 
 	var url string
 	var err error
+	// Converts the integer to a hash. Pretty basic but it's OK for our use
 	id, err := strconv.ParseInt(hash, 36, 64)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -133,8 +135,9 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Converts the integer to a hash. Pretty basic but it's OK for our use
 	tinyhash := strconv.FormatInt(lastId, 36)
-	tinyurl := fmt.Sprintf("http://%s/%s", config.Hostname, tinyhash)
+	tinyurl := FormatUrl(config.Proto, config.Hostname, config.Port, tinyhash)
 	hash := TinyURL{tinyurl}
 	js, err := json.Marshal(hash)
 	if err != nil {

@@ -1,5 +1,6 @@
 {
   "hostname": "localhost",
+  "proto" : "http",
   "port": 8080,
   "db_type" : "mysql",
   "db_username": "root",

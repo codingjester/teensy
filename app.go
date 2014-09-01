@@ -7,19 +7,18 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 )
 
-// TODO Make the url validation a bit more resilient
 var db *sql.DB
 var config *Configuration
 
 type TinyURL struct {
-	Url string `json:"url"`
+	Url  string `json:"url"`
+	Hash string `json:"hash"`
 }
 
 type Configuration struct {
@@ -110,8 +109,7 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	requrl, err := url.Parse(r.PostForm["url"][0])
-	if err != nil {
+	if !ValidateURL(r.PostForm["url"][0]) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -138,7 +136,7 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 	// Encodes the integer into a hash, built in the helpers.
 	tinyhash := EncodeHash(lastId)
 	tinyurl := FormatUrl(config.Proto, config.Hostname, config.Port, tinyhash)
-	hash := TinyURL{tinyurl}
+	hash := TinyURL{tinyurl, tinyhash}
 	js, err := json.Marshal(hash)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -165,17 +163,28 @@ func GetTinyUrlsHandler(w http.ResponseWriter, r *http.Request) {
 		offset = "0"
 	}
 
-	rows, err := db.Query("SELECT url FROM urls LIMIT 10 OFFSET ?", offset)
+	rows, err := db.Query("SELECT id, url FROM urls LIMIT 10 OFFSET ?", offset)
 	defer rows.Close()
-	// TODO We should be returning JSON and not plaintext
+
+	urls := []TinyURL{}
 	for rows.Next() {
+		var id int64
 		var url string
-		err = rows.Scan(&url)
-		fmt.Fprintln(w, url)
+		err = rows.Scan(&id, &url)
+		urls = append(urls, TinyURL{url, EncodeHash(id)})
 	}
 	err = rows.Err()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	js, err := json.Marshal(urls)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	WriteJSON(w, js)
+
 }

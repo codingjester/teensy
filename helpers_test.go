@@ -4,6 +4,25 @@ import (
 	"testing"
 )
 
+func TestValidateUrl(t *testing.T) {
+	if !ValidateURL("http://testing.com/yeah") {
+		t.Error("Validate error failed to parse http://testing.com/yeah")
+	}
+
+	if !ValidateURL("https://testing.com/yeah") {
+		t.Error("Validate error failed to parse https://testing.com/yeah")
+	}
+
+	if ValidateURL("ftp://ftp.awesomesauce.com") {
+		t.Error("Validate should not have allowed a ftp url to work.")
+	}
+
+	if ValidateURL("git://awesome.git.host.com") {
+		t.Error("Validate should not have allowed a git url to work.")
+	}
+
+}
+
 func TestFormatUrl(t *testing.T) {
 	if FormatUrl("http", "testing.com", 9000, "test") != "http://testing.com:9000/test" {
 		t.Error("Format URL did not equal http://testing.com:9000/test")

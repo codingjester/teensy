@@ -3,8 +3,20 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 )
+
+func ValidateURL(url string) bool {
+	regex, err := regexp.Compile("http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*(),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+")
+	if err != nil {
+		return false
+	}
+	if regex.MatchString(url) {
+		return true
+	}
+	return false
+}
 
 func FormatUrl(proto string, host string, port int, hash string) string {
 	if port != 80 {

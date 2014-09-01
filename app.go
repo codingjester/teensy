@@ -89,8 +89,8 @@ func TinyUrlRedirectHandler(w http.ResponseWriter, r *http.Request) {
 
 	var url string
 	var err error
-	// Converts the integer to a hash. Pretty basic but it's OK for our use
-	id, err := strconv.ParseInt(hash, 36, 64)
+	// Converts the integer to a hash, built in helpers.
+	id, err := DecodeHash(hash)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -135,8 +135,8 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Converts the integer to a hash. Pretty basic but it's OK for our use
-	tinyhash := strconv.FormatInt(lastId, 36)
+	// Encodes the integer into a hash, built in the helpers.
+	tinyhash := EncodeHash(lastId)
 	tinyurl := FormatUrl(config.Proto, config.Hostname, config.Port, tinyhash)
 	hash := TinyURL{tinyurl}
 	js, err := json.Marshal(hash)
@@ -144,8 +144,8 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
+
+	WriteJSON(w, js)
 }
 
 func GetTinyUrlsHandler(w http.ResponseWriter, r *http.Request) {

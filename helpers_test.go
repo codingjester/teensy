@@ -34,8 +34,8 @@ func TestFormatUrl(t *testing.T) {
 }
 
 func TestDecodeHash(t *testing.T) {
-	_, err := DecodeHash("£") // Not a value we would be using, but allowed in urls
-	if err == nil {
+	// Not a value we would be using or represented in our hash, but allowed in urls
+	if _, err := DecodeHash("£"); err == nil {
 		t.Errorf("Value was decoded incorrectly")
 	}
 

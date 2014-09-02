@@ -109,7 +109,10 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	if !ValidateURL(r.PostForm["url"][0]) {
+	// the url we've parsed from the POST request
+	url := r.PostForm["url"][0]
+
+	if !ValidateURL(url) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -121,7 +124,7 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := stmt.Exec(requrl.String())
+	res, err := stmt.Exec(url)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

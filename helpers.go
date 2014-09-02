@@ -41,6 +41,9 @@ func EncodeHash(id int64) string {
 	return strconv.FormatInt(id, 36)
 }
 
+// Helpers for the actual web framework to make sure
+// I DRY up some of this boilerplate.
+
 func WriteJSON(w http.ResponseWriter, js []byte) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)

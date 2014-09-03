@@ -43,7 +43,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/urls", AddTinyUrlHandler).Methods("POST")
 	r.HandleFunc("/urls", GetTinyUrlsHandler).Methods("GET")
-	r.HandleFunc("/{hash:[a-z0-9]+}", TinyUrlRedirectHandler).Methods("GET")
+	r.HandleFunc("/{hash:[a-z0-9]+}", TinyUrlRedirectHandler).Methods("GET") // if you want to use something with base 64, you'll need to change this regex to [a-zA-Z0-9]+
 	http.Handle("/", r)
 	http.ListenAndServe(":8080", nil)
 }

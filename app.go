@@ -151,17 +151,11 @@ func AddTinyUrlHandler(w http.ResponseWriter, r *http.Request) {
 
 func GetTinyUrlsHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO Authentication?
-	offset := "0"
 	params := r.URL.Query()
 
-	// Validates if offset exists and sets the value
-	_, ok := params["offset"]
-	if ok {
-		offset = params["offset"][0]
-	}
+	offset := GetWithDefault(params, "offset", "0")
 
-	// Validates if offset is capable of being an int, default
-	// to zero if it can't
+	// Validates if offset is capable of being an int, default to Zero
 	if _, err := strconv.Atoi(offset); err != nil {
 		offset = "0"
 	}

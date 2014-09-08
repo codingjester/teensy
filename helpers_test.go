@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/url"
 	"testing"
 )
 
@@ -56,5 +57,17 @@ func TestEncodeHash(t *testing.T) {
 
 	if EncodeHash(1234567890) != "kf12oi" {
 		t.Error("value 1234567890 did not equal kf12oi")
+	}
+}
+
+func TestGetWithDefault(t *testing.T) {
+	hash := url.Values{}
+	hash.Set("offset", "25")
+	if GetWithDefault(hash, "offset", "0") != "25" {
+		t.Error("value did not return 25 for the offset")
+	}
+
+	if GetWithDefault(hash, "magic", "0") != "0" {
+		t.Error("value did not return 0 for magic")
 	}
 }

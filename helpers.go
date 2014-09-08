@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 )
@@ -43,6 +44,14 @@ func EncodeHash(id int64) string {
 
 // Helpers for the actual web framework to make sure
 // I DRY up some of this boilerplate.
+
+func GetWithDefault(values url.Values, key string, fallback string) string {
+	_, ok := values[key]
+	if ok {
+		return values[key][0]
+	}
+	return fallback
+}
 
 func WriteJSON(w http.ResponseWriter, js []byte) {
 	w.Header().Set("Content-Type", "application/json")
